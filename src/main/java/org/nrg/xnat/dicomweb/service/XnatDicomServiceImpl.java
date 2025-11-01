@@ -8,11 +8,15 @@ import org.dcm4che3.image.BufferedImageUtils;
 import org.dcm4che3.imageio.plugins.dcm.DicomImageReadParam;
 import org.nrg.xdat.om.XnatProjectdata;
 import org.nrg.xdat.om.XnatImagesessiondata;
+import org.nrg.action.ServerException;
+import org.nrg.xdat.model.CatEntryI;
 import org.nrg.xdat.om.XnatImagescandata;
 import org.nrg.xdat.om.XnatAbstractresource;
+import org.nrg.xdat.om.XnatResourcecatalog;
 import org.nrg.xft.security.UserI;
 import org.nrg.xft.XFTItem;
 import org.nrg.xft.search.CriteriaCollection;
+import org.nrg.xnat.utils.CatalogUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -24,7 +28,9 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageReader;
 import javax.imageio.stream.ImageInputStream;
@@ -448,33 +454,16 @@ public class XnatDicomServiceImpl implements XnatDicomService {
                     if (resourceObj instanceof XnatAbstractresource) {
                         XnatAbstractresource resource = (XnatAbstractresource) resourceObj;
 
-                        // Check if this is a DICOM resource
-                        String label = resource.getLabel();
-                        if ("DICOM".equalsIgnoreCase(label)) {
-                            // Get catalog directory from resource
-                            String catalogPath = getResourcePath(resource, scan);
+                        if (!isDicomResource(resource)) {
+                            continue;
+                        }
 
-                            if (catalogPath != null) {
-                                File catalogDir = new File(catalogPath);
-
-                                if (catalogDir.exists() && catalogDir.isDirectory()) {
-                                    File[] files = catalogDir.listFiles((dir, name) ->
-                                        name.toLowerCase().endsWith(".dcm") ||
-                                        name.toLowerCase().endsWith(".dicom"));
-
-                                    if (files != null) {
-                                        for (File dicomFile : files) {
-                                            try (DicomInputStream dis = new DicomInputStream(dicomFile)) {
-                                                Attributes attrs = dis.readDataset(-1, -1);
-                                                results.add(attrs);
-                                            } catch (Exception e) {
-                                                logger.warn("Error reading DICOM file: " + dicomFile.getName(), e);
-                                            }
-                                        }
-                                    }
-                                } else {
-                                    logger.debug("Catalog directory does not exist: {}", catalogPath);
-                                }
+                        for (File dicomFile : resolveDicomFiles(resource, scan)) {
+                            try (DicomInputStream dis = new DicomInputStream(dicomFile)) {
+                                Attributes attrs = dis.readDataset(-1, -1);
+                                results.add(attrs);
+                            } catch (Exception e) {
+                                logger.debug("Error reading DICOM candidate {}", dicomFile.getAbsolutePath(), e);
                             }
                         }
                     }
@@ -486,6 +475,78 @@ public class XnatDicomServiceImpl implements XnatDicomService {
         }
 
         return results;
+    }
+
+    private List<File> resolveDicomFiles(XnatAbstractresource resource, XnatImagescandata scan) {
+        Set<File> files = new LinkedHashSet<>();
+
+        XnatImagesessiondata session = (XnatImagesessiondata) scan.getImageSessionData();
+
+        if (resource instanceof XnatResourcecatalog && session != null) {
+            try {
+                CatalogUtils.CatalogData catalogData = CatalogUtils.CatalogData.getOrCreate(session, (XnatResourcecatalog) resource);
+                String projectId = session.getProject();
+
+                for (CatEntryI entry : catalogData.catBean.getEntries_entry()) {
+                    File file = CatalogUtils.getFile(entry, catalogData.catPath, projectId);
+                    if (isReadableFile(file)) {
+                        files.add(file);
+                    }
+                }
+            } catch (ServerException e) {
+                logger.warn("Unable to resolve catalog for resource {}", resource.getXnatAbstractresourceId(), e);
+            } catch (Exception e) {
+                logger.warn("Unexpected error resolving catalog for resource {}", resource.getXnatAbstractresourceId(), e);
+            }
+        } else {
+            String basePath = getResourcePath(resource, scan);
+            if (basePath != null) {
+                collectFiles(new File(basePath), files);
+            }
+        }
+
+        return new ArrayList<>(files);
+    }
+
+    private boolean isReadableFile(File file) {
+        return file != null && file.exists() && file.isFile() && file.canRead();
+    }
+
+    private void collectFiles(File root, Set<File> sink) {
+        if (root == null || !root.exists()) {
+            return;
+        }
+        if (root.isFile()) {
+            if (root.canRead()) {
+                sink.add(root);
+            }
+            return;
+        }
+
+        File[] children = root.listFiles();
+        if (children == null) {
+            return;
+        }
+        for (File child : children) {
+            collectFiles(child, sink);
+        }
+    }
+
+    private boolean isDicomResource(XnatAbstractresource resource) {
+        return matchesDicomDescriptor(resource.getLabel())
+                || matchesDicomDescriptor(resource.getFormat())
+                || matchesDicomDescriptor(resource.getContent());
+    }
+
+    private boolean matchesDicomDescriptor(String value) {
+        if (value == null) {
+            return false;
+        }
+        String normalized = value.trim().toLowerCase();
+        if (normalized.isEmpty()) {
+            return false;
+        }
+        return normalized.contains("dicom") || normalized.contains("secondary");
     }
 
     /**
@@ -500,33 +561,20 @@ public class XnatDicomServiceImpl implements XnatDicomService {
                     if (resourceObj instanceof XnatAbstractresource) {
                         XnatAbstractresource resource = (XnatAbstractresource) resourceObj;
 
-                        String label = resource.getLabel();
-                        if ("DICOM".equalsIgnoreCase(label)) {
-                            String catalogPath = getResourcePath(resource, scan);
+                        if (!isDicomResource(resource)) {
+                            continue;
+                        }
 
-                            if (catalogPath != null) {
-                                File catalogDir = new File(catalogPath);
+                        for (File dicomFile : resolveDicomFiles(resource, scan)) {
+                            try (DicomInputStream dis = new DicomInputStream(dicomFile)) {
+                                Attributes attrs = dis.readDataset(-1, -1);
+                                String fileSOPUID = attrs.getString(Tag.SOPInstanceUID);
 
-                                if (catalogDir.exists() && catalogDir.isDirectory()) {
-                                    File[] files = catalogDir.listFiles((dir, name) ->
-                                        name.toLowerCase().endsWith(".dcm") ||
-                                        name.toLowerCase().endsWith(".dicom"));
-
-                                    if (files != null) {
-                                        for (File dicomFile : files) {
-                                            try (DicomInputStream dis = new DicomInputStream(dicomFile)) {
-                                                Attributes attrs = dis.readDataset(-1, -1);
-                                                String fileSOPUID = attrs.getString(Tag.SOPInstanceUID);
-
-                                                if (sopInstanceUID.equals(fileSOPUID)) {
-                                                    return dicomFile;
-                                                }
-                                            } catch (Exception e) {
-                                                logger.debug("Error reading DICOM file: " + dicomFile.getName(), e);
-                                            }
-                                        }
-                                    }
+                                if (sopInstanceUID.equals(fileSOPUID)) {
+                                    return dicomFile;
                                 }
+                            } catch (Exception e) {
+                                logger.debug("Error reading DICOM candidate {}", dicomFile.getAbsolutePath(), e);
                             }
                         }
                     }
@@ -548,26 +596,52 @@ public class XnatDicomServiceImpl implements XnatDicomService {
      */
     private String getResourcePath(XnatAbstractresource resource, XnatImagescandata scan) {
         try {
-            // Construct path based on XNAT conventions
-            // Adjust baseArchive if your XNAT uses a different path
-            String baseArchive = System.getProperty("xnat.archive", "/data/xnat/archive");
-
             XnatImagesessiondata session = (XnatImagesessiondata) scan.getImageSessionData();
             if (session != null) {
-                String projectId = session.getProject();
-                String sessionLabel = session.getLabel();
+                String archivePath = null;
+                try {
+                    archivePath = session.getArchivePath();
+                } catch (Exception e) {
+                    logger.debug("Unable to resolve archive path from session", e);
+                }
 
-                // Standard XNAT archive structure
-                String path = baseArchive + "/" + projectId + "/arc001/" +
-                             sessionLabel + "/SCANS/" + scan.getId() + "/" + resource.getLabel();
+                if (archivePath == null || archivePath.isEmpty()) {
+                    final String baseArchive = System.getProperty("xnat.archive", "/data/xnat/archive");
+                    final String projectId = session.getProject();
+                    final String sessionLabel = session.getLabel();
+                    archivePath = buildFallbackArchivePath(baseArchive, projectId, sessionLabel);
+                }
 
-                return path;
+                if (archivePath != null && !archivePath.isEmpty()) {
+                    return joinPaths(archivePath, "SCANS", scan.getId(), resource.getLabel());
+                }
             }
         } catch (Exception e) {
             logger.debug("Error getting resource path", e);
         }
 
         return null;
+    }
+
+    private String buildFallbackArchivePath(String baseArchive, String projectId, String sessionLabel) {
+        if (baseArchive == null || baseArchive.isEmpty() || projectId == null || sessionLabel == null) {
+            return null;
+        }
+        String normalizedBase = baseArchive.endsWith(File.separator)
+                ? baseArchive.substring(0, baseArchive.length() - 1)
+                : baseArchive;
+        // Fallback to legacy arc001 assumption if archive path cannot be determined
+        return normalizedBase + File.separator + projectId + File.separator + "arc001" + File.separator + sessionLabel;
+    }
+
+    private String joinPaths(String first, String... others) {
+        File path = new File(first);
+        for (String part : others) {
+            if (part != null && !part.isEmpty()) {
+                path = new File(path, part);
+            }
+        }
+        return path.getPath();
     }
 
     /**

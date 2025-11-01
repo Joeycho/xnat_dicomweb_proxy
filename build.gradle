@@ -52,6 +52,10 @@ configurations {
     all*.exclude group: 'javax.servlet', module: 'servlet-api'
 }
 
+configurations.testRuntimeClasspath {
+    exclude group: 'com.sun.media', module: 'jai_imageio'
+}
+
 dependencyManagement.imports {
     mavenBom "org.nrg:parent:${vXnat}"
 }
@@ -94,7 +98,18 @@ dependencies {
     testImplementation "org.springframework:spring-test"
     testImplementation "org.mockito:mockito-core:4.8.0"
     testImplementation "javax.servlet:javax.servlet-api"
-
+    testImplementation ("org.nrg.xnat:xnat-data-models:${vXnat}") {
+        exclude group: 'com.sun.media', module: 'jai_imageio'
+    }
+    testImplementation ("org.nrg.xdat:core:${vXnat}") {
+        exclude group: 'com.sun.media', module: 'jai_imageio'
+    }
+    testImplementation ("org.nrg.xnat:web:${vXnat}") {
+        exclude group: 'com.sun.media', module: 'jai_imageio'
+    }
+    testImplementation ("org.nrg:framework:${vXnat}") {
+        exclude group: 'com.sun.media', module: 'jai_imageio'
+    }
     // Test dependencies that need actual implementations
     testImplementation "org.dcm4che:dcm4che-core:5.29.2"
     testImplementation "org.dcm4che:dcm4che-json:5.29.2"
