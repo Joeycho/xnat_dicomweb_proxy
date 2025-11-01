@@ -33,8 +33,12 @@ Tests the service layer that interfaces with XNAT data models.
 - Search studies (single and multiple)
 - Search series (single and multiple)
 - Search instances
-- Retrieve operations
+- Retrieve instance operations
+- Retrieve metadata
+- Retrieve study and series
+- Rendered image retrieval
 - Error handling for non-existent data
+- File path resolution
 
 **Run with:**
 ```bash
@@ -63,11 +67,13 @@ Tests the WADO-RS (Retrieve) REST API endpoints.
 **Coverage:**
 - Retrieve instance
 - Retrieve instance metadata
+- Retrieve rendered instance
 - Retrieve series
 - Retrieve study
 - Retrieve series metadata
 - Not found scenarios
 - Multipart response handling
+- Content type validation
 
 **Run with:**
 ```bash
@@ -175,11 +181,22 @@ curl -X GET "http://localhost:8080/xapi/dicomweb/projects/PROJECT_ID/studies/STU
   -H "Accept: application/dicom+json" \
   -u username:password
 
+# Retrieve rendered instance
+curl -X GET "http://localhost:8080/xapi/dicomweb/projects/PROJECT_ID/studies/STUDY_UID/series/SERIES_UID/instances/INSTANCE_UID/rendered" \
+  -H "Accept: image/jpeg" \
+  -u username:password \
+  -o rendered.jpg
+
 # Retrieve series
 curl -X GET "http://localhost:8080/xapi/dicomweb/projects/PROJECT_ID/studies/STUDY_UID/series/SERIES_UID" \
   -H "Accept: multipart/related" \
   -u username:password \
   -o series.multipart
+
+# Retrieve series metadata
+curl -X GET "http://localhost:8080/xapi/dicomweb/projects/PROJECT_ID/studies/STUDY_UID/series/SERIES_UID/metadata" \
+  -H "Accept: application/dicom+json" \
+  -u username:password
 ```
 
 ## Testing with OHIF Viewer

@@ -129,17 +129,26 @@ XnatProjectdata project = XnatProjectdata.getXnatProjectdatasById(
 - `XnatProjectdata` if user has access
 - `null` if project doesn't exist or user lacks permission
 
+#### Searching for Sessions
+
+```java
+// Search by project
+ArrayList sessions = XnatImagesessiondata.getXnatImagesessiondatasByField(
+    "xnat:imageSessionData/project", projectId, user, false);
+
+// Search by UID
+ArrayList sessions = XnatImagesessiondata.getXnatImagesessiondatasByField(
+    "xnat:imageSessionData/UID", studyUID, user, false);
+```
+
 #### Navigating the Data Model
 
 ```java
-// Project → Sessions (Studies)
-List<XnatImagesessiondata> sessions = project.getImageSessions_imageSession();
-
 // Session → Scans (Series)
-List<XnatImagescandata> scans = session.getScans_scan();
+List scans = session.getScans_scan();
 
 // Scan → Resources (Files)
-List<XnatAbstractresource> resources = scan.getFile();
+List resources = scan.getFile();
 ```
 
 ### 4. DICOM Attribute Mapping
@@ -375,9 +384,12 @@ compileOnly "org.nrg.xnat:web:${vXnat}"
 compileOnly "org.nrg.xnat:xnat-data-models:${vXnat}"
 compileOnly "org.dcm4che:dcm4che-core:5.29.2"
 compileOnly "org.dcm4che:dcm4che-json:5.29.2"
+compileOnly "org.dcm4che:dcm4che-image:5.29.2"
+compileOnly "org.dcm4che:dcm4che-imageio:5.29.2"
 ```
 
 **compileOnly:** Dependencies provided by XNAT at runtime.
+**Note:** DCM4CHE image libraries are required for rendering DICOM to JPEG.
 
 ### Plugin Metadata
 
@@ -430,18 +442,23 @@ if (value != null && !value.isEmpty()) {
 
 ### 3. File Not Found
 
-**Problem:** DICOM file doesn't exist at resource URI
+**Problem:** DICOM file doesn't exist at constructed path
 
 **Causes:**
-- Incorrect resource path
+- Incorrect XNAT archive path
+- Non-standard archive structure
 - File moved/deleted
-- Archive storage
 
-**Solution:** Check file existence:
+**Solution:** Verify and configure archive path:
 ```java
-File file = new File(resource.getUri());
-if (!file.exists()) {
-    logger.warn("File not found: {}", file.getPath());
+String baseArchive = System.getProperty("xnat.archive", "/data/xnat/archive");
+// Construct path based on XNAT conventions
+String path = baseArchive + "/" + projectId + "/arc001/" +
+             sessionLabel + "/SCANS/" + scanId + "/" + resourceLabel;
+
+File catalogDir = new File(path);
+if (!catalogDir.exists() || !catalogDir.isDirectory()) {
+    logger.warn("Resource directory not found: {}", path);
     return null;
 }
 ```
@@ -566,9 +583,12 @@ logger.error("Failed to read DICOM file", e);   // Error
 ### Adding Custom DICOM Tag
 
 ```java
-// In XnatDicomServiceImpl.searchStudies()
-String customValue = session.getProperty("custom_field");
-attrs.setString(Tag.PrivateCreator, VR.LO, customValue);
+// In XnatDicomServiceImpl.createStudyAttributes()
+// Map additional XNAT fields to DICOM attributes
+Object modalityObj = session.getModality();
+if (modalityObj != null) {
+    attrs.setString(Tag.Modality, VR.CS, modalityObj.toString());
+}
 ```
 
 ### Supporting Additional Query Parameters

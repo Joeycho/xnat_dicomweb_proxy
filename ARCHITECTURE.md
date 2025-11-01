@@ -97,16 +97,18 @@ Implements DICOMweb QIDO-RS (Query based on ID for DICOM Objects) endpoints.
 Implements DICOMweb WADO-RS (Web Access to DICOM Objects) endpoints.
 
 **Endpoints:**
-- `GET /studies/{studyUID}/series/{seriesUID}/instances/{instanceUID}` - Retrieve instance
-- `GET /studies/{studyUID}/series/{seriesUID}/instances/{instanceUID}/metadata` - Retrieve metadata
-- `GET /studies/{studyUID}/series/{seriesUID}` - Retrieve series
-- `GET /studies/{studyUID}/series/{seriesUID}/metadata` - Retrieve series metadata
-- `GET /studies/{studyUID}` - Retrieve study
+- `GET /dicomweb/projects/{projectId}/studies/{studyUID}/series/{seriesUID}/instances/{instanceUID}` - Retrieve instance
+- `GET /dicomweb/projects/{projectId}/studies/{studyUID}/series/{seriesUID}/instances/{instanceUID}/metadata` - Retrieve metadata
+- `GET /dicomweb/projects/{projectId}/studies/{studyUID}/series/{seriesUID}/instances/{instanceUID}/rendered` - Retrieve rendered JPEG
+- `GET /dicomweb/projects/{projectId}/studies/{studyUID}/series/{seriesUID}` - Retrieve series
+- `GET /dicomweb/projects/{projectId}/studies/{studyUID}/series/{seriesUID}/metadata` - Retrieve series metadata
+- `GET /dicomweb/projects/{projectId}/studies/{studyUID}` - Retrieve study
 
 **Response Formats:**
 - `application/dicom` for DICOM instances
 - `application/dicom+json` for metadata
 - `multipart/related` for bulk retrieval
+- `image/jpeg` for rendered images
 
 **Key Responsibilities:**
 - Streaming DICOM data to clients
@@ -128,6 +130,7 @@ The service layer abstracts XNAT data access and provides DICOM-specific operati
 - `retrieveMetadata()` - Get DICOM attributes
 - `retrieveStudy()` - Get all instances in study
 - `retrieveSeries()` - Get all instances in series
+- `retrieveRenderedInstance()` - Get rendered JPEG image
 
 **XNAT Mapping:**
 ```
@@ -143,7 +146,8 @@ AbstractResource/Files  →  Instances
 - Translates XNAT data models to DICOM attributes
 - Handles XNAT security and permissions
 - Reads DICOM files from XNAT's file system
-- Caches and optimizes data access
+- Renders DICOM images to JPEG format using DCM4CHE ImageIO
+- File path resolution based on XNAT archive structure
 
 ### 4. Utility Layer
 
@@ -292,12 +296,14 @@ Compliant with **DICOM PS3.18 Section 9**: Web Services - Retrieve
 - Metadata retrieval
 - Series retrieval (multipart)
 - Study retrieval (multipart)
+- Series metadata retrieval
+- Rendered image retrieval (JPEG)
 - DICOM and DICOM JSON formats
 
 **Not Yet Implemented:**
 - Frame retrieval
-- Rendered image retrieval (JPEG, PNG)
 - Thumbnail generation
+- PNG rendering
 
 ### STOW-RS (Store)
 
@@ -370,7 +376,7 @@ attrs.setString(Tag.CustomTag, VR.XX, xnatValue);
 
 ### Core Dependencies
 
-- **XNAT Core**: 1.8.9+
+- **XNAT Core**: 1.9.x
   - Web framework
   - Data models
   - Security
@@ -379,6 +385,7 @@ attrs.setString(Tag.CustomTag, VR.XX, xnatValue);
   - DICOM parsing
   - JSON conversion
   - Tag definitions
+  - Image rendering (dcm4che-image, dcm4che-imageio)
 
 - **Spring Framework**: 5.x
   - REST controllers
@@ -425,12 +432,13 @@ curl http://xnat/xapi/dicomweb/projects/PROJECT/studies
 2. Pagination for large result sets
 3. Better error messages with DICOM error codes
 4. Performance optimization (caching)
+5. Thumbnail generation with configurable sizes
 
 ### Medium Term
 1. WADO-URI support (legacy)
 2. Frame-level retrieval
-3. Rendered image retrieval
-4. Thumbnail generation
+3. PNG rendering support
+4. Windowing/leveling support for rendered images
 
 ### Long Term
 1. STOW-RS (upload/store) support

@@ -6,14 +6,11 @@ This guide provides step-by-step instructions for installing and deploying the X
 
 ## Prerequisites
 
-- XNAT 1.7.5+ installed and running
+- XNAT 1.9.0+ installed and running
 - Admin access to XNAT server
 - Java 8 or higher
-- Gradle 5.6+ (for building from source)
-
-## Important Note
-
-**The service implementation (`XnatDicomServiceImpl.java`) is currently a stub** that needs to be completed based on your specific XNAT version. The XNAT data model API varies between versions, requiring version-specific implementations.
+- Gradle 6.6+ (for building from source)
+- DCM4CHE libraries (provided by XNAT or plugin dependencies)
 
 ## Building the Plugin
 
@@ -62,28 +59,19 @@ This guide provides step-by-step instructions for installing and deploying the X
 4. Upload `xnat-dicomweb-proxy-1.0.0.jar`
 5. XNAT will automatically restart to load the plugin
 
-## Completing the Implementation
+## Configuration
 
-Before the plugin will work with actual data, you need to complete the `XnatDicomServiceImpl.java` implementation:
+### Archive Path Configuration
 
-1. Identify your XNAT version:
+The plugin uses XNAT's archive path to locate DICOM files. By default, it looks for `/data/xnat/archive`. If your XNAT installation uses a different path:
+
+1. Set the system property when starting XNAT:
    ```bash
-   grep "XNAT_VERSION" $XNAT_HOME/config/xnat-conf.properties
+   # In $CATALINA_HOME/bin/setenv.sh
+   CATALINA_OPTS="$CATALINA_OPTS -Dxnat.archive=/path/to/your/archive"
    ```
 
-2. Review the XNAT data model API for your version:
-   - XNAT 1.7.x: https://wiki.xnat.org/xnat-api/xnat-1-7-rest-api-directory
-   - XNAT 1.8.x: https://wiki.xnat.org/xnat-api/xnat-1-8-rest-api-directory
-
-3. Edit `src/main/java/org/nrg/xnat/dicomweb/service/XnatDicomServiceImpl.java`
-
-4. Implement the TODOs using the appropriate XNAT API calls:
-   - `searchStudies()` - Access imaging sessions
-   - `searchSeries()` - Access scans within sessions
-   - `searchInstances()` - Access DICOM files in resources
-   - `retrieveInstance()` - Stream DICOM files
-
-5. Rebuild and redeploy
+2. Or configure in XNAT's properties file if supported by your version
 
 ## Verification
 
@@ -108,11 +96,20 @@ curl -u username:password \
   http://your-xnat-server/xapi/dicomweb/projects/PROJECT_ID/studies
 
 # Should return:
-# [] (empty array if no studies or implementation incomplete)
-# or study data if implementation is complete
+# [] (empty array if no studies)
+# or JSON array with study data if studies exist
 ```
 
-### 3. Check Swagger Documentation
+### 3. Test the Test Page
+
+Navigate to:
+```
+http://your-xnat-server/xapi/dicomweb/test
+```
+
+This provides an interactive test page for validating the plugin endpoints.
+
+### 4. Check Swagger Documentation
 
 Navigate to:
 ```
@@ -220,11 +217,12 @@ Ensure users have appropriate permissions:
 **Symptoms**: API returns `[]` for endpoints
 
 **Solutions**:
-- **Most likely**: Implementation is not complete (still using stubs)
-- Verify project contains imaging data
+- Verify project contains imaging sessions with DICOM data
 - Check user has read permissions
+- Verify DICOM data has StudyInstanceUID, SeriesInstanceUID fields populated
+- Check XNAT archive path is correct
 - Review XNAT logs for errors
-- Verify DICOM data has required UIDs
+- Verify DICOM resources are labeled "DICOM" in XNAT
 
 ### CORS Errors
 
@@ -309,10 +307,10 @@ For XNAT-related issues:
 
 After installation:
 
-1. Complete the `XnatDicomServiceImpl` implementation
-2. Test with actual XNAT data
-3. Configure CORS for web viewers
-4. Connect OHIF or VolView
+1. Test with actual XNAT data using the test page or cURL
+2. Verify DICOM files are accessible
+3. Configure CORS for web viewers (if using OHIF/VolView)
+4. Connect OHIF or VolView to your XNAT instance
 5. Train users on accessing DICOM data via viewers
 
 ## Additional Resources

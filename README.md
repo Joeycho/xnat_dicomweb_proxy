@@ -56,6 +56,9 @@ All endpoints are prefixed with `/xapi/dicomweb/projects/{projectId}`
 - **Retrieve Study**: `GET /xapi/dicomweb/projects/{projectId}/studies/{studyUID}`
   - Returns all instances in a study as multipart/related
 
+- **Retrieve Rendered Instance**: `GET /xapi/dicomweb/projects/{projectId}/studies/{studyUID}/series/{seriesUID}/instances/{instanceUID}/rendered`
+  - Returns a rendered JPEG image of the instance
+
 ## Using with OHIF Viewer
 
 1. Configure OHIF to use the DICOMweb endpoint:
@@ -94,20 +97,22 @@ The plugin uses XNAT's built-in authentication. Users must be authenticated with
 
 ## Requirements
 
-- XNAT 1.9.0 or higher (implemented and tested for 1.9.x)
+- XNAT 1.9.0 or higher (implemented for 1.9.x)
 - Java 8 or higher
 - DICOM data stored in XNAT with proper StudyInstanceUID, SeriesInstanceUID, and SOPInstanceUID
-- Standard XNAT archive structure: `/data/xnat/archive` (configurable)
+- XNAT archive path (defaults to `/data/xnat/archive`, configurable via `xnat.archive` system property)
 
 ## Architecture
 
 The plugin consists of:
 
 - **DicomWebProxyPlugin**: Main plugin class
+- **DicomWebConfig**: Spring configuration and CORS setup
 - **QidoRsApi**: REST controller for QIDO-RS queries
 - **WadoRsApi**: REST controller for WADO-RS retrieval
-- **XnatDicomService**: Service layer for accessing XNAT data
+- **XnatDicomService/XnatDicomServiceImpl**: Service layer for accessing XNAT data
 - **DicomWebUtils**: Utility methods for DICOM/JSON conversion
+- **DicomWebTestPageApi**: Test page endpoint for validation
 
 ## Development
 
