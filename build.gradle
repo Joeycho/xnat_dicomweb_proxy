@@ -32,6 +32,7 @@ repositories {
     maven { url "https://nrgxnat.jfrog.io/nrgxnat/libs-snapshot" }
     mavenCentral()
     maven { url "https://www.dcm4che.org/maven2/" }
+    maven { url "https://oss.sonatype.org/content/repositories/releases/" }
 }
 
 sourceCompatibility = 1.8
@@ -93,6 +94,18 @@ dependencies {
     testImplementation "org.springframework:spring-test"
     testImplementation "org.mockito:mockito-core:4.8.0"
     testImplementation "javax.servlet:javax.servlet-api"
+
+    // Test dependencies that need actual implementations
+    testImplementation "org.dcm4che:dcm4che-core:5.29.2"
+    testImplementation "org.dcm4che:dcm4che-json:5.29.2"
+    testImplementation("org.dcm4che:dcm4che-imageio:5.29.2") {
+        exclude group: 'com.sun.media', module: 'jai_imageio'
+    }
+    testImplementation("org.dcm4che:dcm4che-image:5.29.2") {
+        exclude group: 'com.sun.media', module: 'jai_imageio'
+    }
+    testImplementation "org.slf4j:slf4j-api"
+    testImplementation "org.slf4j:slf4j-simple:1.7.30"
 }
 
 jar {
