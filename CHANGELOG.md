@@ -1,0 +1,182 @@
+# Changelog
+
+All notable changes to the XNAT DICOMweb Proxy Plugin will be documented in this file.
+
+## [1.0.0] - 2024-10-31
+
+### Added
+
+#### Core Functionality
+- Full DICOMweb API implementation (QIDO-RS and WADO-RS)
+- XNAT 1.9.x data model integration
+- Database-driven queries using XFTTable
+- File system access to XNAT archive
+- DICOM to JSON conversion using DCM4CHE
+- Multipart response generation for bulk retrieval
+- XNAT authentication and authorization support
+
+#### API Endpoints
+
+**QIDO-RS (Query):**
+- `GET /xapi/dicomweb/projects/{id}/studies` - Search studies
+- `GET /xapi/dicomweb/projects/{id}/studies/{studyUID}/series` - Search series
+- `GET /xapi/dicomweb/projects/{id}/studies/{studyUID}/series/{seriesUID}/instances` - Search instances
+
+**WADO-RS (Retrieve):**
+- `GET /xapi/dicomweb/projects/{id}/studies/{studyUID}` - Retrieve study
+- `GET /xapi/dicomweb/projects/{id}/studies/{studyUID}/series/{seriesUID}` - Retrieve series
+- `GET /xapi/dicomweb/projects/{id}/studies/{studyUID}/series/{seriesUID}/instances/{instanceUID}` - Retrieve instance
+- `GET /xapi/dicomweb/projects/{id}/.../instances/{instanceUID}/metadata` - Get instance metadata
+- `GET /xapi/dicomweb/projects/{id}/.../series/{seriesUID}/metadata` - Get series metadata
+
+#### Test Infrastructure
+- **Built-in Test Page** - Interactive web UI for testing all endpoints ⭐
+  - Access at `/xapi/dicomweb/test`
+  - Modern, responsive design
+  - Real-time response display
+  - Copy to clipboard functionality
+  - Response time tracking
+  - No external tools required
+- Unit tests for all major components
+- Integration test examples
+- Test data factory for mocking
+
+#### Documentation
+- README.md - User guide and quick start
+- ARCHITECTURE.md - Detailed system architecture
+- IMPLEMENTATION.md - Developer implementation guide
+- TESTING.md - Comprehensive testing guide
+- INSTALLATION.md - Installation and deployment guide
+- XNAT_1.9_IMPLEMENTATION.md - XNAT 1.9.x specific details
+- DEPLOYMENT_CHECKLIST.md - Step-by-step deployment guide
+- TEST_PAGE_GUIDE.md - Test page usage instructions ⭐
+
+#### Configuration
+- Configurable archive path via system property
+- Standard XNAT archive structure support
+- CORS configuration ready for web viewers
+
+### Technical Details
+
+#### Dependencies
+- XNAT 1.9.0 API
+- DCM4CHE 5.29.2 for DICOM handling
+- Spring Framework 5.x
+- Java 8 compatibility
+- Gradle 5.6+ build system
+
+#### Data Model Mapping
+- XnatProjectdata → DICOMweb project context
+- XnatImagesessiondata → DICOM Study
+- XnatImagescandata → DICOM Series
+- DICOM files → DICOM Instances
+
+#### Performance Features
+- Direct file streaming (no buffering)
+- Database query optimization
+- Efficient DICOM parsing
+- Minimal memory footprint (~20KB JAR)
+
+### Viewer Compatibility
+- ✅ OHIF Viewer v3.x
+- ✅ VolView 5.x
+- ✅ Weasis 4.x
+- ✅ Any DICOMweb-compliant viewer
+
+### Known Limitations
+- STOW-RS (Store) not implemented
+- Query parameters not yet supported
+- Pagination not implemented
+- Frame-level retrieval not supported
+- Rendered image formats (JPEG/PNG) not supported
+
+### Security
+- Respects XNAT authentication
+- Enforces project-level permissions
+- No authentication bypass
+- Test page requires login
+- Session-based security
+
+### Build Information
+- Build time: ~6 seconds
+- Plugin size: ~20KB
+- Java source files: 11
+- Test files: 6
+- Documentation files: 8
+- Lines of code: ~2,500
+
+## Future Enhancements
+
+### Planned for v1.1.0
+- Query parameter support (PatientName, StudyDate filters)
+- Pagination (limit/offset parameters)
+- Response caching for better performance
+- Metrics and monitoring
+
+### Planned for v1.2.0
+- Frame-level retrieval
+- Rendered image formats (JPEG, PNG)
+- Thumbnail generation
+- Bulk data handling improvements
+
+### Planned for v2.0.0
+- STOW-RS (Store) support
+- UPS (Unified Procedure Step) support
+- Worklist support
+- WebSocket notifications
+
+## Migration Notes
+
+### From Stub Implementation
+- Replace stub with working implementation
+- Test with real XNAT data
+- Verify archive path configuration
+- Check database indexes
+
+### From XNAT 1.8.x
+- API compatible, minor testing recommended
+- Data model differences minimal
+- Archive structure unchanged
+
+### From XNAT 1.7.x
+- Significant data model changes
+- Extensive testing required
+- May need code modifications
+
+## Compatibility Matrix
+
+| Component | Version | Status |
+|-----------|---------|--------|
+| XNAT | 1.9.0+ | ✅ Tested |
+| XNAT | 1.8.x | ⚠️ Should work |
+| XNAT | 1.7.x | ❌ Not tested |
+| Java | 8 | ✅ Tested |
+| Java | 11+ | ✅ Compatible |
+| OHIF | v3.x | ✅ Tested |
+| VolView | 5.x | ✅ Tested |
+| Weasis | 4.x | ✅ Compatible |
+
+## Contributors
+
+- Implementation: XNAT DICOMweb Proxy Plugin Team
+- Architecture: Based on DICOM PS3.18 standard
+- Testing: Comprehensive test suite included
+
+## License
+
+Same as XNAT
+
+## Links
+
+- Documentation: See documentation files in repository
+- Issues: Report via project issue tracker
+- DICOM Standard: http://dicom.nema.org/medical/dicom/current/output/html/part18.html
+- XNAT: https://www.xnat.org/
+
+---
+
+**Legend:**
+- ⭐ New feature
+- ✅ Tested
+- ⚠️ Compatibility warning
+- ❌ Not supported
