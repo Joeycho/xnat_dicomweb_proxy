@@ -164,6 +164,26 @@ attrs.setString(Tag.StudyDate, VR.DA, formatDate(session.getDate()));
 attrs.setString(Tag.StudyDescription, VR.LO, session.getLabel());
 ```
 
+#### Enhanced Study Metadata
+
+The `retrieveStudyMetadata` endpoint provides comprehensive study-level attributes:
+
+```java
+// Study timing
+attrs.setString(Tag.StudyDate, VR.DA, formatDate(session.getDate()));
+attrs.setString(Tag.StudyTime, VR.TM, formatTime(session.getTime()));
+
+// Series and instance counts
+attrs.setInt(Tag.NumberOfStudyRelatedSeries, VR.IS, numberOfSeries);
+attrs.setInt(Tag.NumberOfStudyRelatedInstances, VR.IS, numberOfInstances);
+
+// Institution and modalities
+attrs.setString(Tag.InstitutionName, VR.LO, session.getProject());
+attrs.setString(Tag.ModalitiesInStudy, VR.CS, String.join("\\", modalities));
+```
+
+**Note:** Instance counts are calculated by reading DICOM files from each series, which may impact performance for large studies.
+
 **Tag Constants:** From `org.dcm4che3.data.Tag`
 **VR (Value Representation):** From `org.dcm4che3.data.VR`
 

@@ -2,6 +2,25 @@
 
 All notable changes to the XNAT DICOMweb Proxy Plugin will be documented in this file.
 
+## [1.1.1] - 2025-01-07
+
+### Added
+- **Study-level metadata endpoint** - `GET /xapi/dicomweb/projects/{id}/studies/{studyUID}/metadata`
+  - Returns comprehensive study-level DICOM metadata
+  - Includes NumberOfStudyRelatedSeries and NumberOfStudyRelatedInstances
+  - Includes StudyTime, InstitutionName, and ModalitiesInStudy
+  - Enhanced patient identification attributes
+
+### Enhanced
+- Study attributes now include series and instance counts
+- Improved metadata completeness for DICOMweb compliance
+
+## [1.1.0] - 2024-11-07
+
+### Added
+- Development roadmap for future improvements
+- Maven repository path for improved dependency resolution
+
 ## [1.0.0] - 2024-10-31
 
 ### Added

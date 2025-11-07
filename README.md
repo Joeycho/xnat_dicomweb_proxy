@@ -50,6 +50,9 @@ All endpoints are prefixed with `/xapi/dicomweb/projects/{projectId}`
 - **Retrieve Series**: `GET /xapi/dicomweb/projects/{projectId}/studies/{studyUID}/series/{seriesUID}`
   - Returns all instances in a series as multipart/related
 
+- **Retrieve Study Metadata**: `GET /xapi/dicomweb/projects/{projectId}/studies/{studyUID}/metadata`
+  - Returns comprehensive study-level metadata including series/instance counts
+
 - **Retrieve Series Metadata**: `GET /xapi/dicomweb/projects/{projectId}/studies/{studyUID}/series/{seriesUID}/metadata`
   - Returns metadata for all instances in a series
 
