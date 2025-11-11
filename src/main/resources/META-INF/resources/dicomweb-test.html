@@ -330,6 +330,7 @@
             <div class="section">
                 <h2>WADO-RS Tests (Retrieve)</h2>
                 <div class="button-group">
+                    <button onclick="testRetrieveStudyMetadata()">Get Study Metadata</button>
                     <button onclick="testRetrieveInstanceMetadata()">Get Instance Metadata</button>
                     <button onclick="testRetrieveSeriesMetadata()">Get Series Metadata</button>
                     <button onclick="testRetrieveInstance()">Download Instance (DICOM)</button>
@@ -504,6 +505,21 @@
 
             const url = `/xapi/dicomweb/projects/${projectId}/studies/${studyUID}/series/${seriesUID}/instances/${instanceUID}/metadata`;
             makeRequest(url, 'Retrieve Instance Metadata');
+        }
+
+        function testRetrieveStudyMetadata() {
+            const projectId = getProjectId();
+            if (!projectId) return;
+
+            const studyUID = document.getElementById('studyUID').value.trim();
+
+            if (!studyUID) {
+                showStatus('Please enter a Study Instance UID', 'error');
+                return;
+            }
+
+            const url = `/xapi/dicomweb/projects/${projectId}/studies/${studyUID}/metadata`;
+            makeRequest(url, 'Retrieve Study Metadata (All Instances)');
         }
 
         function testRetrieveSeriesMetadata() {
