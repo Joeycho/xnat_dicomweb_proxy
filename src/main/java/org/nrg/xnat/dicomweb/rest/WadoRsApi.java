@@ -24,6 +24,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMethod;
 
+import javax.servlet.http.HttpServletRequest;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -177,6 +178,66 @@ public class WadoRsApi extends AbstractXapiRestController {
     }
 
     /**
+     * Retrieve study metadata
+     * GET /dicomweb/projects/{projectId}/studies/{studyUID}/metadata
+     *
+     * Returns metadata for all instances in the study (per DICOM PS3.18 spec)
+     */
+    @XapiRequestMapping(
+            value = "/dicomweb/projects/{projectId}/studies/{studyUID}/metadata",
+            method = RequestMethod.GET,
+            produces = "application/dicom+json"
+    )
+    @ApiOperation(value = "Retrieve study metadata (WADO-RS)", response = String.class)
+    @ApiResponses({
+            @ApiResponse(code = 200, message = "Study metadata retrieved"),
+            @ApiResponse(code = 401, message = "Must be authenticated"),
+            @ApiResponse(code = 404, message = "Study not found"),
+            @ApiResponse(code = 500, message = "Internal error")
+    })
+    public ResponseEntity<String> retrieveStudyMetadata(@PathVariable String projectId,
+                                                         @PathVariable String studyUID) {
+        logger.info("=== retrieveStudyMetadata called ===");
+        logger.info("Project ID: {}", projectId);
+        logger.info("Study UID: {}", studyUID);
+
+        try {
+            UserI user = getSessionUser();
+            logger.info("Processing study metadata request");
+
+            // Return instance metadata as JSON
+            List<Attributes> instances = dicomService.searchInstances(user, projectId, studyUID, null, null);
+
+            logger.info("Retrieved {} instances", instances != null ? instances.size() : 0);
+
+            if (instances == null || instances.isEmpty()) {
+                logger.warn("No instances found for study {}", studyUID);
+                return ResponseEntity.notFound().build();
+            }
+
+            String json = "[" + instances.stream()
+                    .map(attrs -> {
+                        try {
+                            return DicomWebUtils.toJson(attrs);
+                        } catch (Exception e) {
+                            logger.error("Error converting instance metadata to JSON", e);
+                            return "{}";
+                        }
+                    })
+                    .collect(Collectors.joining(",")) + "]";
+
+            logger.info("Returning JSON response with {} characters", json.length());
+            return ResponseEntity.ok()
+                    .contentType(MediaType.parseMediaType(DicomWebUtils.getDicomJsonContentType()))
+                    .body(json);
+
+        } catch (Exception e) {
+            logger.error("Error retrieving study metadata: " + studyUID, e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
+        }
+    }
+
+    /**
      * Retrieve all instances in a study as multipart
      * GET /dicomweb/projects/{projectId}/studies/{studyUID}
      */
@@ -194,11 +255,21 @@ public class WadoRsApi extends AbstractXapiRestController {
     })
     public ResponseEntity<InputStreamResource> retrieveStudy(@PathVariable String projectId,
                                                              @PathVariable String studyUID) {
+        logger.info("=== retrieveStudy called ===");
+        logger.info("Project ID: {}", projectId);
+        logger.info("Study UID: {}", studyUID);
+
         try {
             UserI user = getSessionUser();
+            logger.info("Processing study retrieval request");
+
+            // Return DICOM instances as multipart
             List<InputStream> streams = dicomService.retrieveStudy(user, projectId, studyUID);
 
+            logger.info("Retrieved {} streams", streams != null ? streams.size() : 0);
+
             if (streams == null || streams.isEmpty()) {
+                logger.warn("No streams found for study {}", studyUID);
                 return ResponseEntity.notFound().build();
             }
 
@@ -209,6 +280,7 @@ public class WadoRsApi extends AbstractXapiRestController {
             HttpHeaders headers = new HttpHeaders();
             headers.setContentType(MediaType.parseMediaType(DicomWebUtils.getMultipartContentType(boundary)));
 
+            logger.info("Returning multipart response with {} bytes", multipart.size());
             return ResponseEntity.ok()
                     .headers(headers)
                     .body(new InputStreamResource(new ByteArrayInputStream(multipart.toByteArray())));
@@ -256,44 +328,6 @@ public class WadoRsApi extends AbstractXapiRestController {
 
         } catch (Exception e) {
             logger.error("Error retrieving rendered instance: " + instanceUID, e);
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
-        }
-    }
-
-    /**
-     * Retrieve study-level metadata
-     * GET /dicomweb/projects/{projectId}/studies/{studyUID}/metadata
-     */
-    @XapiRequestMapping(
-            value = "/dicomweb/projects/{projectId}/studies/{studyUID}/metadata",
-            method = RequestMethod.GET,
-            produces = "application/dicom+json"
-    )
-    @ApiOperation(value = "Retrieve study-level metadata (WADO-RS)", response = String.class)
-    @ApiResponses({
-            @ApiResponse(code = 200, message = "Study metadata retrieved"),
-            @ApiResponse(code = 401, message = "Must be authenticated"),
-            @ApiResponse(code = 404, message = "Study not found"),
-            @ApiResponse(code = 500, message = "Internal error")
-    })
-    public ResponseEntity<String> retrieveStudyMetadata(@PathVariable String projectId,
-                                                        @PathVariable String studyUID) {
-        try {
-            UserI user = getSessionUser();
-            Attributes attrs = dicomService.retrieveStudyMetadata(user, projectId, studyUID);
-
-            if (attrs == null) {
-                return ResponseEntity.notFound().build();
-            }
-
-            String json = "[" + DicomWebUtils.toJson(attrs) + "]";
-
-            return ResponseEntity.ok()
-                    .contentType(MediaType.parseMediaType(DicomWebUtils.getDicomJsonContentType()))
-                    .body(json);
-
-        } catch (Exception e) {
-            logger.error("Error retrieving study metadata for study: " + studyUID, e);
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).build();
         }
     }
