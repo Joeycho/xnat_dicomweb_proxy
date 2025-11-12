@@ -858,4 +858,197 @@ public class XnatDicomServiceImpl implements XnatDicomService {
             return null;
         }
     }
+
+    @Override
+    public List<byte[]> retrieveFrames(UserI user, String projectId, String studyInstanceUID,
+                                      String seriesInstanceUID, String sopInstanceUID, String frameNumbers) {
+        List<byte[]> frames = new ArrayList<>();
+
+        try {
+            XnatProjectdata project = XnatProjectdata.getXnatProjectdatasById(projectId, user, false);
+            if (project == null) {
+                return frames;
+            }
+
+            // Find the session and scan
+            XnatImagesessiondata session = findSessionByUID(user, projectId, studyInstanceUID);
+            if (session == null) {
+                return frames;
+            }
+
+            XnatImagescandata targetScan = null;
+            List scans = session.getScans_scan();
+
+            for (Object scanObj : scans) {
+                XnatImagescandata scan = (XnatImagescandata) scanObj;
+                if (seriesInstanceUID.equals(scan.getUid())) {
+                    targetScan = scan;
+                    break;
+                }
+            }
+
+            if (targetScan == null) {
+                return frames;
+            }
+
+            // Find the specific DICOM file
+            File dicomFile = findDicomFileInScan(targetScan, sopInstanceUID);
+
+            if (dicomFile == null) {
+                return frames;
+            }
+
+            // Parse frame numbers
+            List<Integer> frameList = parseFrameNumbers(frameNumbers);
+            if (frameList.isEmpty()) {
+                return frames;
+            }
+
+            // Read DICOM file and extract frames
+            try (DicomInputStream dis = new DicomInputStream(dicomFile)) {
+                Attributes attrs = dis.readDataset(-1, -1);
+
+                // Check if this is a multi-frame image
+                int numberOfFrames = attrs.getInt(Tag.NumberOfFrames, 1);
+
+                logger.info("Retrieving frames {} from instance {} (total frames: {})",
+                        frameNumbers, sopInstanceUID, numberOfFrames);
+
+                // Validate requested frames
+                for (Integer frameNumber : frameList) {
+                    if (frameNumber < 1 || frameNumber > numberOfFrames) {
+                        logger.warn("Frame number {} out of range (1-{})", frameNumber, numberOfFrames);
+                        continue;
+                    }
+
+                    // Extract pixel data for the frame
+                    byte[] frameData = extractFramePixelData(dicomFile, frameNumber - 1); // Convert to 0-based
+                    if (frameData != null) {
+                        frames.add(frameData);
+                    }
+                }
+            }
+
+            logger.info("Retrieved {} frame(s) from instance: {}", frames.size(), sopInstanceUID);
+
+        } catch (Exception e) {
+            logger.error("Error retrieving frames from instance: " + sopInstanceUID, e);
+        }
+
+        return frames;
+    }
+
+    /**
+     * Parse comma-separated frame numbers (1-based)
+     */
+    private List<Integer> parseFrameNumbers(String frameNumbers) {
+        List<Integer> result = new ArrayList<>();
+
+        if (frameNumbers == null || frameNumbers.trim().isEmpty()) {
+            return result;
+        }
+
+        String[] parts = frameNumbers.split(",");
+        for (String part : parts) {
+            try {
+                int frameNum = Integer.parseInt(part.trim());
+                if (frameNum > 0) {
+                    result.add(frameNum);
+                }
+            } catch (NumberFormatException e) {
+                logger.warn("Invalid frame number: {}", part);
+            }
+        }
+
+        return result;
+    }
+
+    /**
+     * Extract pixel data for a specific frame (0-based index)
+     */
+    private byte[] extractFramePixelData(File dicomFile, int frameIndex) {
+        try {
+            ImageInputStream iis = ImageIO.createImageInputStream(dicomFile);
+            if (iis == null) {
+                logger.error("Could not create ImageInputStream for DICOM file");
+                return null;
+            }
+
+            Iterator<ImageReader> readers = ImageIO.getImageReadersByFormatName("DICOM");
+            if (!readers.hasNext()) {
+                logger.error("No DICOM ImageReader found");
+                iis.close();
+                return null;
+            }
+
+            ImageReader reader = readers.next();
+            reader.setInput(iis, false);
+
+            // Check if the frame index is valid
+            int numImages = reader.getNumImages(true);
+            if (frameIndex < 0 || frameIndex >= numImages) {
+                logger.error("Frame index {} out of range (0-{})", frameIndex, numImages - 1);
+                reader.dispose();
+                iis.close();
+                return null;
+            }
+
+            // Read the raw raster data for the frame
+            DicomImageReadParam param = (DicomImageReadParam) reader.getDefaultReadParam();
+            BufferedImage image = reader.read(frameIndex, param);
+
+            reader.dispose();
+            iis.close();
+
+            if (image == null) {
+                logger.error("Could not read frame {} from DICOM file", frameIndex);
+                return null;
+            }
+
+            // Return the raw pixel data
+            // For now, return the pixel data as-is from the BufferedImage
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+
+            // Use the native DICOM reader to get raw pixel data
+            try (DicomInputStream dis = new DicomInputStream(dicomFile)) {
+                Attributes attrs = dis.readDataset(-1, -1);
+
+                // Get pixel data fragment for the specific frame
+                Object pixelData = attrs.getValue(Tag.PixelData);
+
+                if (pixelData instanceof byte[]) {
+                    // Single frame or uncompressed
+                    byte[] allPixels = (byte[]) pixelData;
+
+                    // Calculate frame size
+                    int rows = attrs.getInt(Tag.Rows, 0);
+                    int cols = attrs.getInt(Tag.Columns, 0);
+                    int samplesPerPixel = attrs.getInt(Tag.SamplesPerPixel, 1);
+                    int bitsAllocated = attrs.getInt(Tag.BitsAllocated, 8);
+                    int bytesPerSample = bitsAllocated / 8;
+
+                    int frameSize = rows * cols * samplesPerPixel * bytesPerSample;
+
+                    if (frameSize > 0 && (frameIndex * frameSize + frameSize) <= allPixels.length) {
+                        byte[] frameData = new byte[frameSize];
+                        System.arraycopy(allPixels, frameIndex * frameSize, frameData, 0, frameSize);
+                        return frameData;
+                    }
+                } else {
+                    // Compressed or fragmented pixel data
+                    // For compressed data, we need to return the rendered image
+                    // Convert BufferedImage to raw bytes
+                    ImageIO.write(image, "PNG", baos);
+                    return baos.toByteArray();
+                }
+            }
+
+            logger.debug("Successfully extracted frame {} pixel data", frameIndex);
+            return baos.toByteArray();
+
+        } catch (Exception e) {
+            logger.error("Error extracting frame pixel data", e);
+            return null;
+        }
+    }
 }
