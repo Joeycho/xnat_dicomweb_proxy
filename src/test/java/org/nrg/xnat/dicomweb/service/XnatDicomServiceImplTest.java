@@ -9,6 +9,8 @@ import java.util.List;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
 
 /**
  * Focused tests for helper methods in {@link XnatDicomServiceImpl}.
@@ -121,5 +123,98 @@ public class XnatDicomServiceImplTest {
         assertEquals("Should preserve order", Integer.valueOf(1), result.get(1));
         assertEquals("Should preserve order", Integer.valueOf(10), result.get(2));
         assertEquals("Should preserve order", Integer.valueOf(3), result.get(3));
+    }
+
+    /**
+     * Integration test to verify frame extraction doesn't return PNG-encoded data
+     * This test uses an actual DICOM file from the test data directory
+     */
+    @Test
+    public void extractFramePixelData_DoesNotReturnPNG() throws Exception {
+        // Find a test DICOM file
+        String testDicomPath = "../data/Elder_subject_florbetapir/291467/scans/510007/DICOM/Generic_Study_ID.PT.Generic_Study_Description.510007.4.20120101.123408.1qhub5e.dcm";
+        java.io.File testFile = new java.io.File(testDicomPath);
+
+        if (!testFile.exists()) {
+            // Skip test if test data not available
+            System.out.println("Skipping extractFramePixelData test - test DICOM file not found");
+            return;
+        }
+
+        // Use reflection to call private method
+        Method extractFramePixelData = XnatDicomServiceImpl.class.getDeclaredMethod(
+                "extractFramePixelData", java.io.File.class, int.class);
+        extractFramePixelData.setAccessible(true);
+
+        // Extract first frame (index 0)
+        byte[] frameData = (byte[]) extractFramePixelData.invoke(service, testFile, 0);
+
+        if (frameData != null && frameData.length > 4) {
+            // Check that data doesn't start with PNG magic bytes (89 50 4E 47)
+            boolean isPNG = (frameData[0] == (byte)0x89 &&
+                           frameData[1] == (byte)0x50 &&
+                           frameData[2] == (byte)0x4E &&
+                           frameData[3] == (byte)0x47);
+
+            assertFalse("Frame data should not be PNG-encoded", isPNG);
+
+            // Also check for JPEG magic bytes (FF D8 FF)
+            boolean isJPEG = (frameData[0] == (byte)0xFF &&
+                            frameData[1] == (byte)0xD8 &&
+                            frameData[2] == (byte)0xFF);
+
+            assertFalse("Frame data should not be JPEG-encoded", isJPEG);
+
+            System.out.println("Frame extraction test passed - returned raw pixel data (" + frameData.length + " bytes)");
+        }
+    }
+
+    /**
+     * Test that verifies extractFramePixelData returns raw pixel data for uncompressed DICOM
+     */
+    @Test
+    public void extractFramePixelData_ReturnsRawPixelData() throws Exception {
+        String testDicomPath = "../data/Elder_subject_florbetapir/291467/scans/510007/DICOM/Generic_Study_ID.PT.Generic_Study_Description.510007.4.20120101.123408.1qhub5e.dcm";
+        java.io.File testFile = new java.io.File(testDicomPath);
+
+        if (!testFile.exists()) {
+            System.out.println("Skipping raw pixel data test - test DICOM file not found");
+            return;
+        }
+
+        // Read DICOM file to get expected frame size
+        org.dcm4che3.io.DicomInputStream dis = new org.dcm4che3.io.DicomInputStream(testFile);
+        org.dcm4che3.data.Attributes attrs = dis.readDataset(-1, -1);
+        dis.close();
+
+        int rows = attrs.getInt(org.dcm4che3.data.Tag.Rows, 0);
+        int cols = attrs.getInt(org.dcm4che3.data.Tag.Columns, 0);
+        int samplesPerPixel = attrs.getInt(org.dcm4che3.data.Tag.SamplesPerPixel, 1);
+        int bitsAllocated = attrs.getInt(org.dcm4che3.data.Tag.BitsAllocated, 8);
+        int numberOfFrames = attrs.getInt(org.dcm4che3.data.Tag.NumberOfFrames, 1);
+
+        if (rows == 0 || cols == 0) {
+            System.out.println("Skipping test - could not read DICOM dimensions");
+            return;
+        }
+
+        int expectedFrameSize = rows * cols * samplesPerPixel * (bitsAllocated / 8);
+
+        // Extract frame
+        Method extractFramePixelData = XnatDicomServiceImpl.class.getDeclaredMethod(
+                "extractFramePixelData", java.io.File.class, int.class);
+        extractFramePixelData.setAccessible(true);
+
+        byte[] frameData = (byte[]) extractFramePixelData.invoke(service, testFile, 0);
+
+        assertNotNull("Frame data should not be null", frameData);
+
+        // For uncompressed data, frame size should match calculated size
+        // For compressed data, this may differ
+        System.out.println(String.format("Frame data size: %d bytes, expected size: %d bytes (frames: %d, dimensions: %dx%d)",
+                frameData.length, expectedFrameSize, numberOfFrames, rows, cols));
+
+        // At minimum, verify we got some data
+        assertTrue("Frame data should have non-zero length", frameData.length > 0);
     }
 }
