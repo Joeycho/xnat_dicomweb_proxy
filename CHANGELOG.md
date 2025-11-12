@@ -2,6 +2,36 @@
 
 All notable changes to the XNAT DICOMweb Proxy Plugin will be documented in this file.
 
+## [1.1.3] - 2025-11-12
+
+### Added
+- **WADO-RS frame-level retrieval** - `GET /xapi/dicomweb/.../frames/{frameList}` (Issue #17)
+  - Enables OHIF viewer to request individual frames from multi-frame DICOM instances
+  - Supports comma-separated frame numbers (e.g., `frames/1` or `frames/1,2,3`)
+  - Returns single frames as `application/octet-stream`
+  - Returns multiple frames as `multipart/related`
+  - Handles both uncompressed and compressed pixel data correctly
+
+### Fixed
+- **Frame extraction for compressed DICOM data**
+  - Uncompressed data: Direct byte[] extraction (fast)
+  - Compressed data: ImageIO decompression (correct, avoids fragment mapping issues)
+  - Prevents corruption from incorrectly accessing Basic Offset Table as frame data
+  - Properly handles multi-fragment frames in compressed transfer syntaxes
+
+### Technical Details
+- New `retrieveFrames()` service method with frame parsing and extraction logic
+- `extractFramePixelData()` correctly distinguishes uncompressed vs compressed data
+- Never transcodes to PNG/JPEG - always returns raw pixel data
+- 33 unit tests (added 15 tests for frame retrieval functionality)
+- Comprehensive test coverage: parsing, REST endpoints, PNG/JPEG prevention, compressed handling
+- Test data included: anonymized 34KB PET scan sample (no external dependencies)
+
+### Compliance
+- ✅ DICOM PS3.18 Section 10.4 - WADO-RS Retrieve Transaction
+- ✅ 1-based frame indexing per specification
+- ✅ Proper multipart/related response format
+
 ## [1.1.2] - 2025-11-11
 
 ### Fixed
